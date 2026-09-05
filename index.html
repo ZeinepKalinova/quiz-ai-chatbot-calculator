@@ -618,7 +618,7 @@
         <div class="mc" id="mc1">
             <div class="mc-ico">💰</div>
             <div class="mc-val" id="mMoney">—</div>
-            <div class="mc-lbl">рублей в месяц<br>экономия на персонале</div>
+            <div class="mc-lbl">теңге ай сайын<br>персоналға үнемдеу</div>
         </div>
         <div class="mc" id="mc2">
             <div class="mc-ico">📈</div>
@@ -653,15 +653,15 @@
             <form id="contactForm">
                 <div class="fg">
                     <label class="fl" for="fName">Ваше имя</label>
-                    <input class="fi" id="fName" type="text" placeholder="Иван Иванов" required>
+                    <input class="fi" id="fName" type="text" placeholder="Айбек Сейткали" required>
                 </div>
                 <div class="fg">
                     <label class="fl" for="fEmail">Email</label>
-                    <input class="fi" id="fEmail" type="email" placeholder="ivan@company.ru" required>
+                    <input class="fi" id="fEmail" type="email" placeholder="aibek@company.kz" required>
                 </div>
                 <div class="fg">
                     <label class="fl" for="fPhone">Телефон (необязательно)</label>
-                    <input class="fi" id="fPhone" type="tel" placeholder="+7 (900) 000-00-00">
+                    <input class="fi" id="fPhone" type="tel" placeholder="+7 (700) 000-00-00">
                 </div>
                 <button type="submit" class="fsub">Отправить заявку →</button>
                 <p class="fnote">🔒 Никакого спама. Только ваш персональный расчёт.</p>
@@ -804,10 +804,10 @@ const Qs = [
         icon: '💰', type: 'single',
         q: 'Сколько стоит 1 час работы вашего сотрудника?',
         opts: [
-            { l: 'До 300 ₽/час',         s: '≈ 50 000 ₽/мес',           v: 0 },
-            { l: '300–600 ₽/час',        s: '≈ 70–100 000 ₽/мес',       v: 1 },
-            { l: '600–1 000 ₽/час',      s: '≈ 100–160 000 ₽/мес',      v: 2 },
-            { l: 'Более 1 000 ₽/час',    s: '160 000+ ₽/мес',           v: 3 },
+            { l: 'До 1 500 ₸/сағат',         s: '≈ 250 000 ₸/ай',           v: 0 },
+            { l: '1 500–3 000 ₸/сағат',      s: '≈ 350–500 000 ₸/ай',       v: 1 },
+            { l: '3 000–5 000 ₸/сағат',      s: '≈ 500–800 000 ₸/ай',       v: 2 },
+            { l: 'Жоғары 5 000 ₸/сағат',     s: '800 000+ ₸/ай',            v: 3 },
         ]
     },
 ];
@@ -999,15 +999,15 @@ function calcResults() {
     // Monthly hours saved
     const hours = Math.round(dh * 22 * ap * vm * tb);
 
-    // Hourly rate from Q7 (index 6)
-    const rate = [250, 450, 800, 1500][ans[6]] ?? 450;
+    // Hourly rate from Q7 (index 6) — in tenge
+    const rate = [1250, 2250, 4000, 7500][ans[6]] ?? 2250;
 
     // Monthly savings
     const money = hours * rate;
 
-    // Payback: setup cost ~55 000₽, net gain = money - 13 000 subscription
-    const net = money - 13000;
-    const payback = net > 0 ? Math.max(1, Math.ceil(55000 / net)) : '?';
+    // Payback: setup cost ~275 000₸, net gain = money - 65 000₸ subscription
+    const net = money - 65000;
+    const payback = net > 0 ? Math.max(1, Math.ceil(275000 / net)) : '?';
 
     return { hours, money, payback };
 }
@@ -1072,7 +1072,7 @@ function finishQuiz() {
 
     // Stagger reveal
     setTimeout(() => { $('mc0').classList.add('show'); countUp('mHours', r.hours, '', ' ч'); }, 120);
-    setTimeout(() => { $('mc1').classList.add('show'); countUp('mMoney', r.money, '', ' ₽', true); }, 280);
+    setTimeout(() => { $('mc1').classList.add('show'); countUp('mMoney', r.money, '', ' ₸', true); }, 280);
     setTimeout(() => {
         $('mc2').classList.add('show');
         if (typeof r.payback === 'number') {
@@ -1110,8 +1110,63 @@ $('modalX').addEventListener('click', () => { $('modal').classList.remove('open'
 $('modal').addEventListener('click', e => { if (e.target === $('modal')) $('modal').classList.remove('open'); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') $('modal').classList.remove('open'); });
 
-$('contactForm').addEventListener('submit', e => {
+// ============================================================
+// FORM → TELEGRAM
+// Замените YOUR_BOT_TOKEN и YOUR_CHAT_ID на свои значения
+// ============================================================
+const TG_BOT_TOKEN = 'YOUR_BOT_TOKEN';
+const TG_CHAT_ID   = 'YOUR_CHAT_ID';
+
+$('contactForm').addEventListener('submit', async e => {
     e.preventDefault();
+    const btn = $('contactForm').querySelector('.fsub');
+    btn.textContent = 'Жіберілуде...';
+    btn.disabled = true;
+
+    const name  = $('fName').value.trim();
+    const email = $('fEmail').value.trim();
+    const phone = $('fPhone').value.trim() || 'көрсетілмеген';
+
+    // Собираем ответы квиза для отправки
+    const bizTypes = ['Интернет-магазин','Услуги','Образование','Ресторан/кафе','B2B'];
+    const timeLabels = ['Рабочее время','Вечернее время','Круглосуточно'];
+    const rateLabels = ['до 1 500 ₸/сағ','1 500–3 000 ₸/сағ','3 000–5 000 ₸/сағ','5 000+ ₸/сағ'];
+    const r = calcResults();
+
+    const text = [
+        '🔔 *Жаңа өтінім — AI Quiz*',
+        '',
+        `👤 Аты: ${name}`,
+        `📧 Email: ${email}`,
+        `📱 Телефон: ${phone}`,
+        '',
+        '📊 *Квиз нәтижелері:*',
+        `⏱ Автоматтандыру: *${r.hours} сағат/ай*`,
+        `💰 Үнемдеу: *${r.money.toLocaleString('ru-RU')} ₸/ай*`,
+        `📈 Өтелу мерзімі: *${r.payback} ай*`,
+        '',
+        `🏢 Бизнес түрі: ${bizTypes[ans[1]] ?? '—'}`,
+        `🕐 Байланыс уақыты: ${timeLabels[ans[5]] ?? '—'}`,
+        `💵 Сағаттық ставка: ${rateLabels[ans[6]] ?? '—'}`,
+    ].join('\n');
+
+    try {
+        const res = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: TG_CHAT_ID,
+                text,
+                parse_mode: 'Markdown'
+            })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.description);
+    } catch (err) {
+        console.error('Telegram send error:', err);
+        // Даже при ошибке показываем успех пользователю
+    }
+
     $('mForm').style.display = 'none';
     $('mSuccess').style.display = 'block';
 });
