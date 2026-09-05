@@ -6,6 +6,7 @@
     <title>AI-Калькулятор: нужен ли вашему бизнесу чат-бот?</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <style>
         :root {
             --bg: #04060F;
@@ -990,12 +991,33 @@ $('modal').addEventListener('click', e => { if (e.target===$('modal')) $('modal'
 document.addEventListener('keydown', e => { if (e.key==='Escape') $('modal').classList.remove('open'); });
 
 // ============================================================
-// FORM → TELEGRAM
-// Вставьте свои значения ниже:
+// CREDENTIALS
 // ============================================================
 const TG_BOT_TOKEN = '8664065958:AAGutoDN7a8X0up17YKTW_wJzqoT4upb4fE';
 const TG_CHAT_ID   = '1013283686';
 
+// EmailJS — вставь свои значения после регистрации на emailjs.com
+const EJS_PUBLIC_KEY  = 'YOUR_EMAILJS_PUBLIC_KEY';
+const EJS_SERVICE_ID  = 'YOUR_SERVICE_ID';
+const EJS_TEMPLATE_ID = 'YOUR_TEMPLATE_ID';
+
+// ============================================================
+// HELPER — tasks as plain text for email
+// ============================================================
+function getTasksText() {
+    const t = T[lang];
+    const selected = ans[4] || [0, 1];
+    const icons = ['❓','📅','📨','📋','🌙'];
+    const bizIcons = ['📦','✅','🎓','🍕','🤝'];
+    const lines = selected.map(v => `• ${t.tasks[v]}`).filter(Boolean);
+    const biz = t.bizExtras[ans[1]]; if (biz) lines.push(`• ${biz}`);
+    const te  = t.timeExtras[ans[5]]; if (te) lines.push(`• ${te}`);
+    return lines.slice(0, 6).join('\n');
+}
+
+// ============================================================
+// FORM → TELEGRAM + EMAIL
+// ============================================================
 $('contactForm').addEventListener('submit', async e => {
     e.preventDefault();
     const t   = T[lang];
@@ -1004,38 +1026,55 @@ $('contactForm').addEventListener('submit', async e => {
 
     const name  = $('fName').value.trim();
     const email = $('fEmail').value.trim();
-    const phone = $('fPhone').value.trim() || (lang==='ru'?'не указан':'көрсетілмеген');
+    const phone = $('fPhone').value.trim() || (lang==='ru' ? 'не указан' : 'көрсетілмеген');
     const r     = lastResult || calcResults();
-
     const bizL  = T[lang].bizLabels;
     const timeL = T[lang].timeLabels;
     const rateL = T[lang].rateLabels;
 
-    const msg = [
+    // --- 1. Telegram уведомление тебе ---
+    const tgMsg = [
         '🔔 *Жаңа өтінім — AI Quiz*',
         '',
         `👤 ${lang==='ru'?'Имя':'Аты'}: ${name}`,
         `📧 Email: ${email}`,
-        `📱 ${lang==='ru'?'Телефон':'Телефон'}: ${phone}`,
+        `📱 Телефон: ${phone}`,
         `🌐 ${lang==='ru'?'Язык':'Тіл'}: ${lang==='ru'?'Русский 🇷🇺':'Қазақша 🇰🇿'}`,
         '',
         `📊 *${lang==='ru'?'Результаты квиза':'Квиз нәтижелері'}:*`,
-        `⏱ ${lang==='ru'?'Автоматизация':'Автоматтандыру'}: *${r.hours}${T[lang].mc0suf}/мес*`,
-        `💰 ${lang==='ru'?'Экономия':'Үнемдеу'}: *${r.money.toLocaleString('ru-RU')} ₸/мес*`,
-        `📈 ${lang==='ru'?'Окупаемость':'Өтелу'}: *${r.payback} ${lang==='ru'?'мес':'ай'}*`,
+        `⏱ ${r.hours}${T[lang].mc0suf}/мес`,
+        `💰 ${r.money.toLocaleString('ru-RU')} ₸/мес`,
+        `📈 ${r.payback} ${lang==='ru'?'мес':'ай'}`,
         '',
-        `🏢 ${lang==='ru'?'Бизнес':'Бизнес'}: ${bizL[ans[1]]??'—'}`,
-        `🕐 ${lang==='ru'?'Время обращений':'Байланыс уақыты'}: ${timeL[ans[5]]??'—'}`,
-        `💵 ${lang==='ru'?'Ставка':'Ставка'}: ${rateL[ans[6]]??'—'}`,
+        `🏢 ${bizL[ans[1]]??'—'} · ${timeL[ans[5]]??'—'} · ${rateL[ans[6]]??'—'}`,
     ].join('\n');
 
     try {
         await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: TG_CHAT_ID, text: msg, parse_mode: 'Markdown' })
+            body: JSON.stringify({ chat_id: TG_CHAT_ID, text: tgMsg, parse_mode: 'Markdown' })
         });
     } catch(err) { console.error('TG error:', err); }
+
+    // --- 2. Email клиенту через EmailJS ---
+    if (EJS_PUBLIC_KEY !== 'YOUR_EMAILJS_PUBLIC_KEY') {
+        try {
+            emailjs.init({ publicKey: EJS_PUBLIC_KEY });
+            await emailjs.send(EJS_SERVICE_ID, EJS_TEMPLATE_ID, {
+                to_name:    name,
+                to_email:   email,
+                phone:      phone,
+                lang_label: lang === 'ru' ? 'RU' : 'KZ',
+                hours:      r.hours + T[lang].mc0suf,
+                money:      r.money.toLocaleString('ru-RU') + ' ₸',
+                payback:    r.payback + T[lang].mc2suf,
+                biz_type:   bizL[ans[1]] ?? '—',
+                time_label: timeL[ans[5]] ?? '—',
+                tasks_list: getTasksText(),
+            });
+        } catch(err) { console.error('EmailJS error:', err); }
+    }
 
     $('mForm').style.display = 'none';
     $('mSuccess').style.display = 'block';
