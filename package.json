@@ -1,0 +1,11 @@
+{
+  "name": "quiz-ai-bot",
+  "version": "1.0.0",
+  "description": "AI-калькулятор: нужен ли бизнесу чат-бот",
+  "scripts": {
+    "start": "serve -s . -l ${PORT:-3000}"
+  },
+  "dependencies": {
+    "serve": "^14.2.4"
+  }
+}
